@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -21,6 +21,8 @@ import { fetchClothById } from '../api/clothApi.js';
 import Header from '../components/Header.jsx';
 import { useCart } from '../context/CartContext.jsx';
 import { dummyProducts } from '../data/dummyProducts.js';
+import { useUnit } from '../context/UnitContext.jsx';
+import UnitToggle from '../components/Measurement/UnitToggle.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
 
@@ -28,6 +30,7 @@ export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { unit, cmToInches, inchesToCm, getUnitLabel } = useUnit();
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedFabric, setSelectedFabric] = useState('');
@@ -68,16 +71,41 @@ export default function ProductDetail() {
       .catch(() => {});
   }, [token]);
 
+  // Track previous unit to seamlessly convert custom measurements when toggled
+  const prevUnitRef = useRef(unit);
+  useEffect(() => {
+    if (prevUnitRef.current !== unit) {
+      setCustomMeasurements((prev) => {
+        const updated = {};
+        Object.entries(prev).forEach(([key, val]) => {
+          if (val === '' || val === null || val === undefined) {
+            updated[key] = '';
+          } else if (unit === 'cm') {
+            updated[key] = inchesToCm(val);
+          } else {
+            updated[key] = cmToInches(val);
+          }
+        });
+        return updated;
+      });
+      prevUnitRef.current = unit;
+    }
+  }, [unit, cmToInches, inchesToCm]);
+
   // Load saved measurements into custom fields
   const loadSavedMeasurements = () => {
     if (!savedMeasurements) return;
+    const formatVal = (v) => {
+      if (v === null || v === undefined || v === '') return '';
+      return unit === 'ft/in' ? cmToInches(v) : v;
+    };
     setCustomMeasurements({
-      neck: savedMeasurements.neck || '',
-      chest: savedMeasurements.chest || '',
-      waist: savedMeasurements.waist || '',
-      hips: savedMeasurements.hips || '',
-      sleeve: savedMeasurements.sleeve || '',
-      inseam: savedMeasurements.inseam || '',
+      neck: formatVal(savedMeasurements.neck),
+      chest: formatVal(savedMeasurements.chest),
+      waist: formatVal(savedMeasurements.waist),
+      hips: formatVal(savedMeasurements.hips),
+      sleeve: formatVal(savedMeasurements.sleeve),
+      inseam: formatVal(savedMeasurements.inseam),
     });
     setMeasurementsLoaded(true);
     setTimeout(() => setMeasurementsLoaded(false), 3000);
@@ -226,6 +254,17 @@ export default function ProductDetail() {
     return true;
   };
 
+  const getPreparedCustomMeasurements = () => {
+    if (measurementType !== 'custom') return null;
+    const prepared = {};
+    Object.entries(customMeasurements).forEach(([key, val]) => {
+      if (val !== '' && val !== null && val !== undefined) {
+        prepared[key] = unit === 'ft/in' ? inchesToCm(val) : Number(val);
+      }
+    });
+    return prepared;
+  };
+
   const handleAddToCart = () => {
     if (!product) {
       alert('Product information not available');
@@ -253,7 +292,7 @@ export default function ProductDetail() {
       product,
       quantity,
       measurementType === 'standard' ? selectedSize : 'Custom',
-      measurementType === 'custom' ? customMeasurements : null,
+      getPreparedCustomMeasurements(),
       {
         selectedFabric,
         selectedColor,
@@ -291,7 +330,7 @@ export default function ProductDetail() {
       product,
       quantity,
       measurementType === 'standard' ? selectedSize : 'Custom',
-      measurementType === 'custom' ? customMeasurements : null,
+      getPreparedCustomMeasurements(),
       {
         selectedFabric,
         selectedColor,
@@ -492,11 +531,14 @@ export default function ProductDetail() {
                     <Ruler className="w-5 h-5 text-rose-600" />
                     <h3 className="text-lg font-bold text-stone-900">Select Size & Measurements</h3>
                   </div>
-                  {savedMeasurements && (
-                    <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full font-medium">
-                      ✓ Saved measurements available
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <UnitToggle size="sm" />
+                    {savedMeasurements && (
+                      <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full font-medium">
+                        ✓ Saved measurements available
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Measurement Type Toggle — 3 tabs */}
@@ -565,13 +607,15 @@ export default function ProductDetail() {
                       <div className="bg-amber-50/80 rounded-xl p-4 border border-amber-200">
                         <h4 className="font-semibold text-stone-900 mb-3 flex items-center gap-2">
                           <Info className="w-4 h-4" />
-                          Size {selectedSize} Measurements (inches)
+                          Size {selectedSize} Measurements ({unit === "cm" ? "cm" : "inches"})
                         </h4>
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           {Object.entries(standardSizes.find(s => s.size === selectedSize)?.measurements || {}).map(([key, value]) => (
                             <div key={key} className="flex justify-between">
                               <span className="text-stone-600 capitalize">{key}:</span>
-                              <span className="font-semibold text-stone-900">{value}"</span>
+                              <span className="font-semibold text-stone-900">
+                                {unit === "cm" ? `${Math.round(value * 2.54)} cm` : `${value}"`}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -586,18 +630,18 @@ export default function ProductDetail() {
                     <div className="bg-blue-50/80 rounded-xl p-4 border border-blue-200 mb-4">
                       <p className="text-sm text-blue-900 flex items-start gap-2">
                         <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                        <span>Enter your measurements in inches for a perfect custom fit. Your garment is created using these exact specifications.</span>
+                        <span>Enter your measurements in {unit === "cm" ? "centimeters" : "inches"} for a perfect custom fit. Your garment is created using these exact specifications.</span>
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       {[
-                        { key: 'neck', label: 'Neck', placeholder: 'e.g., 14' },
-                        { key: 'chest', label: 'Chest', placeholder: 'e.g., 36' },
-                        { key: 'waist', label: 'Waist', placeholder: 'e.g., 28' },
-                        { key: 'hips', label: 'Hips', placeholder: 'e.g., 38' },
-                        { key: 'sleeve', label: 'Sleeve', placeholder: 'e.g., 24' },
-                        { key: 'inseam', label: 'Inseam', placeholder: 'e.g., 30' }
+                        { key: 'neck', label: 'Neck', placeholder: unit === 'cm' ? 'e.g., 36' : 'e.g., 14' },
+                        { key: 'chest', label: 'Chest', placeholder: unit === 'cm' ? 'e.g., 91' : 'e.g., 36' },
+                        { key: 'waist', label: 'Waist', placeholder: unit === 'cm' ? 'e.g., 71' : 'e.g., 28' },
+                        { key: 'hips', label: 'Hips', placeholder: unit === 'cm' ? 'e.g., 97' : 'e.g., 38' },
+                        { key: 'sleeve', label: 'Sleeve', placeholder: unit === 'cm' ? 'e.g., 61' : 'e.g., 24' },
+                        { key: 'inseam', label: 'Inseam', placeholder: unit === 'cm' ? 'e.g., 76' : 'e.g., 30' }
                       ].map(({ key, label, placeholder }) => (
                         <div key={key}>
                           <label className="block text-sm font-medium text-stone-700 mb-2">
@@ -612,7 +656,7 @@ export default function ProductDetail() {
                               onChange={(e) => handleCustomMeasurementChange(key, e.target.value)}
                               className="w-full px-4 py-2 pr-10 bg-white/70 border border-stone-200 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-600/50"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm">in</span>
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm">{unit === "cm" ? "cm" : "in"}</span>
                           </div>
                         </div>
                       ))}

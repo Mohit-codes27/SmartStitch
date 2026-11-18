@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import * as tf from "@tensorflow/tfjs";
 import * as poseDetection from "@tensorflow-models/pose-detection";
 import { Camera, StopCircle, Scan, CheckCircle, XCircle } from "lucide-react";
+import { useUnit } from "../../context/UnitContext";
+import UnitToggle from "./UnitToggle";
 
 export default function AIMeasurement({ onMeasurementsComplete }) {
   const videoRef = useRef(null);
@@ -14,6 +16,12 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
   const [error, setError] = useState("");
   const [userHeight, setUserHeight] = useState("");
   const animationFrameId = useRef(null);
+
+  const { unit, cmToFeetInches, feetInchesToCm, formatMeasurement, getUnitLabel } = useUnit();
+
+  // State for ft/in height input mode
+  const [heightFeet, setHeightFeet] = useState("");
+  const [heightInches, setHeightInches] = useState("");
 
   // Initialize pose detector
   useEffect(() => {
@@ -104,10 +112,7 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
   };
 
   // Calculate measurements from pose keypoints using height-dominant anthropometric approach
-  // The skeleton is used only to determine a body-build ratio for minor personalization,
-  // not for direct cm conversions (which are unreliable from 2D camera data).
   const calculateMeasurements = (keypoints, heightInCm) => {
-    // Extract key body points
     const nose = keypoints.find((kp) => kp.name === "nose");
     const leftShoulder = keypoints.find((kp) => kp.name === "left_shoulder");
     const rightShoulder = keypoints.find((kp) => kp.name === "right_shoulder");
@@ -120,7 +125,6 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     const leftAnkle = keypoints.find((kp) => kp.name === "left_ankle");
     const rightAnkle = keypoints.find((kp) => kp.name === "right_ankle");
 
-    // Check if all required points are detected with good confidence
     const requiredPoints = [
       nose, leftShoulder, rightShoulder, leftHip, rightHip,
       leftElbow, rightElbow, leftWrist, rightWrist,
@@ -130,14 +134,9 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     const avgConfidence = requiredPoints.reduce((sum, pt) => sum + (pt?.score || 0), 0) / requiredPoints.length;
     
     if (avgConfidence < 0.4) {
-      return null; // Not enough confidence
+      return null;
     }
 
-    // --- Build factor from skeleton proportions ---
-    // Instead of converting pixel widths to cm (unreliable due to camera distance/angle),
-    // we compute the RATIO of shoulder width to full body height in pixels.
-    // This ratio is camera-distance-independent and tells us if the person is
-    // broader or narrower than average.
     const ankleCenter = {
       x: (leftAnkle.x + rightAnkle.x) / 2,
       y: (leftAnkle.y + rightAnkle.y) / 2
@@ -146,46 +145,23 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     const shoulderWidthPx = calculateDistance(leftShoulder, rightShoulder);
     const hipWidthPx = calculateDistance(leftHip, rightHip);
 
-    // Expected shoulder-to-height ratio for an average adult: ~0.25-0.26
     const expectedShoulderRatio = 0.255;
     const detectedShoulderRatio = shoulderWidthPx / noseToAnkle;
-    
-    // Build factor: how much broader/narrower than average (clamped to ±15%)
     const rawBuildFactor = detectedShoulderRatio / expectedShoulderRatio;
     const buildFactor = Math.max(0.85, Math.min(1.15, rawBuildFactor));
 
-    // Hip build factor (for hip-specific adjustments)
     const expectedHipRatio = 0.18;
     const detectedHipRatio = hipWidthPx / noseToAnkle;
     const rawHipFactor = detectedHipRatio / expectedHipRatio;
     const hipBuildFactor = Math.max(0.85, Math.min(1.15, rawHipFactor));
 
-    // --- Height-based anthropometric measurements ---
-    // These ratios come from established anthropometric research and produce
-    // realistic values. The build factor provides ±15% personalization.
-
-    // Chest circumference: average ~54% of height
     const chest = Math.round(heightInCm * 0.54 * buildFactor);
-
-    // Waist circumference: average ~45% of height
     const waist = Math.round(heightInCm * 0.45 * buildFactor);
-
-    // Hip circumference: average ~54% of height (uses hip-specific build factor)
     const hips = Math.round(heightInCm * 0.54 * hipBuildFactor);
-
-    // Bust: slightly less than chest (~96%)
     const bust = Math.round(chest * 0.96);
-
-    // Shoulder width: average ~25.5% of height
     const shoulder = Math.round(heightInCm * 0.255 * buildFactor);
-
-    // Neck circumference: average ~21.5% of height
     const neck = Math.round(heightInCm * 0.215);
-
-    // Arm length: average ~34% of height
     const armLength = Math.round(heightInCm * 0.34);
-
-    // Sleeve length: average ~33% of height
     const sleeve = Math.round(heightInCm * 0.33);
 
     return {
@@ -219,7 +195,6 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
       const pose = poses[0];
       const keypoints = pose.keypoints;
 
-      // Draw keypoints
       keypoints.forEach((keypoint) => {
         if (keypoint.score > 0.3) {
           ctx.beginPath();
@@ -229,7 +204,6 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
         }
       });
 
-      // Draw skeleton
       const adjacentPairs = [
         ["left_shoulder", "right_shoulder"],
         ["left_shoulder", "left_elbow"],
@@ -261,10 +235,24 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     }
   };
 
+  // Get height in cm regardless of input mode
+  const getHeightInCm = () => {
+    if (unit === "cm") {
+      return parseFloat(userHeight);
+    } else {
+      return feetInchesToCm(heightFeet, heightInches);
+    }
+  };
+
   // Capture and analyze pose
   const capturePose = async () => {
-    if (!detector || !videoRef.current || !userHeight || parseFloat(userHeight) < 50) {
-      setError("Please enter your height in centimeters (e.g., 170)");
+    const heightCm = getHeightInCm();
+    if (!detector || !videoRef.current || !heightCm || heightCm < 50) {
+      setError(
+        unit === "cm"
+          ? "Please enter your height in centimeters (e.g., 170)"
+          : "Please enter your height in feet and inches (e.g., 5' 7\")"
+      );
       return;
     }
 
@@ -272,7 +260,6 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     setError("");
 
     try {
-      // Ensure video is ready
       if (!videoRef.current.srcObject) {
         setError("Video stream not ready. Please start the camera again.");
         setStatus("capturing");
@@ -287,18 +274,12 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
       if (poses.length > 0) {
         drawPose(poses);
         
-        const heightInCm = parseFloat(userHeight);
-        const measuredData = calculateMeasurements(poses[0].keypoints, heightInCm);
+        const measuredData = calculateMeasurements(poses[0].keypoints, heightCm);
         
         if (measuredData) {
-          // Stop camera first
           stopCamera();
-          
-          // Then update measurements state
           setMeasurements(measuredData);
           setConfidence(measuredData.confidence);
-          
-          // Finally, update status to trigger UI change
           setTimeout(() => {
             setStatus("complete");
           }, 100);
@@ -365,21 +346,24 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
           <Camera className="w-6 h-6 text-rose-600" />
           <h2 className="text-xl font-semibold text-stone-900">AI Body Measurement</h2>
         </div>
-        {status !== "idle" && (
-          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-            status === "loading" ? "bg-yellow-100 text-yellow-700" :
-            status === "ready" ? "bg-blue-100 text-blue-700" :
-            status === "capturing" ? "bg-green-100 text-green-700" :
-            status === "analyzing" ? "bg-purple-100 text-purple-700" :
-            "bg-emerald-100 text-emerald-700"
-          }`}>
-            {status === "loading" ? "Loading AI..." :
-             status === "ready" ? "Ready" :
-             status === "capturing" ? `Detecting (${confidence}%)` :
-             status === "analyzing" ? "Analyzing..." :
-             "Complete"}
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <UnitToggle size="sm" />
+          {status !== "idle" && (
+            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+              status === "loading" ? "bg-yellow-100 text-yellow-700" :
+              status === "ready" ? "bg-blue-100 text-blue-700" :
+              status === "capturing" ? "bg-green-100 text-green-700" :
+              status === "analyzing" ? "bg-purple-100 text-purple-700" :
+              "bg-emerald-100 text-emerald-700"
+            }`}>
+              {status === "loading" ? "Loading AI..." :
+               status === "ready" ? "Ready" :
+               status === "capturing" ? `Detecting (${confidence}%)` :
+               status === "analyzing" ? "Analyzing..." :
+               "Complete"}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Debug: Log current state */}
@@ -401,7 +385,7 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
           <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
             <h3 className="font-medium text-blue-900 mb-2">Instructions:</h3>
             <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-              <li>Enter your height in centimeters</li>
+              <li>Enter your height {unit === "cm" ? "in centimeters" : "in feet and inches"}</li>
               <li>Stand 2-3 meters away from the camera</li>
               <li>Ensure your full body is visible in the frame</li>
               <li>Stand straight with arms slightly away from your body</li>
@@ -412,16 +396,43 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
           {/* Height Input */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-stone-700 mb-2">
-              Your Height (in cm) *
+              Your Height ({getUnitLabel("height", unit)}) *
             </label>
-            <input
-              type="number"
-              placeholder="e.g., 170"
-              value={userHeight}
-              onChange={(e) => setUserHeight(e.target.value)}
-              className="w-full px-4 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-800 focus:ring-2 focus:ring-rose-400 outline-none"
-              disabled={isCapturing}
-            />
+            {unit === "cm" ? (
+              <input
+                type="number"
+                placeholder="e.g., 170"
+                value={userHeight}
+                onChange={(e) => setUserHeight(e.target.value)}
+                className="w-full px-4 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-800 focus:ring-2 focus:ring-rose-400 outline-none"
+                disabled={isCapturing}
+              />
+            ) : (
+              <div className="flex gap-3">
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    placeholder="5"
+                    value={heightFeet}
+                    onChange={(e) => setHeightFeet(e.target.value)}
+                    className="w-full px-4 py-2 pr-10 bg-stone-50 border border-stone-300 rounded-xl text-stone-800 focus:ring-2 focus:ring-rose-400 outline-none"
+                    disabled={isCapturing}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">ft</span>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    placeholder="7"
+                    value={heightInches}
+                    onChange={(e) => setHeightInches(e.target.value)}
+                    className="w-full px-4 py-2 pr-10 bg-stone-50 border border-stone-300 rounded-xl text-stone-800 focus:ring-2 focus:ring-rose-400 outline-none"
+                    disabled={isCapturing}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400">in</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Camera View */}
@@ -491,7 +502,9 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
             {Object.entries(measurements).filter(([key]) => key !== "confidence").map(([key, value]) => (
               <div key={key} className="p-3 bg-stone-50 rounded-lg">
                 <div className="text-xs text-stone-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}</div>
-                <div className="text-lg font-semibold text-stone-900">{value} cm</div>
+                <div className="text-lg font-semibold text-stone-900">
+                  {formatMeasurement(value, key, unit)}
+                </div>
               </div>
             ))}
           </div>

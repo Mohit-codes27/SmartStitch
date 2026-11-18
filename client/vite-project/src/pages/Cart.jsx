@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Trash2, Plus, Minus, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
 import Header from '../components/Header.jsx';
+import { useUnit } from '../context/UnitContext.jsx';
+import UnitToggle from '../components/Measurement/UnitToggle.jsx';
 
 const formatInr = (amount) =>
   new Intl.NumberFormat('en-IN', {
@@ -22,6 +24,7 @@ export default function Cart() {
     GST_RATE,
   } = useCart();
   
+  const { unit, formatMeasurement } = useUnit();
   const navigate = useNavigate();
 
   const handleConfirmOrder = () => {
@@ -79,13 +82,18 @@ export default function Cart() {
               <ArrowLeft className="w-5 h-5" />
               Continue Shopping
             </Link>
-            <h1 className="text-4xl font-bold text-gray-800 flex items-center gap-3">
-              <ShoppingBag className="w-10 h-10 text-purple-600" />
-              Shopping Cart
-            </h1>
-            <p className="text-gray-600 mt-2">
-              {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} in your cart
-            </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-4xl font-bold text-gray-800 flex items-center gap-3">
+                  <ShoppingBag className="w-10 h-10 text-purple-600" />
+                  Shopping Cart
+                </h1>
+                <p className="text-gray-600 mt-2">
+                  {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} in your cart
+                </p>
+              </div>
+              <UnitToggle size="md" />
+            </div>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-8">
@@ -129,9 +137,18 @@ export default function Cart() {
                             </p>
                           )}
                           {item.customMeasurements && (
-                            <p className="text-xs text-purple-600 mt-1">
-                              Custom measurements applied
-                            </p>
+                            <div className="mt-2 p-2 bg-purple-50 border border-purple-100 rounded-lg text-xs text-purple-900">
+                              <p className="font-semibold text-purple-800 mb-1">Custom Measurements:</p>
+                              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px] text-purple-700">
+                                {Object.entries(item.customMeasurements)
+                                  .filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+                                  .map(([k, v]) => (
+                                    <span key={k} className="capitalize">
+                                      {k}: {formatMeasurement(v, k, unit)}
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         <button

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { User, Search, Heart, ShoppingBag, Sparkles } from "lucide-react";
 import { UserDataContext } from "../context/UserContext.jsx";
 import { useCart } from "../context/CartContext.jsx";
+import UnitToggle from "./Measurement/UnitToggle.jsx";
 
 export default function Header() {
   const { user, setUser } = React.useContext(UserDataContext);
@@ -69,6 +70,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <UnitToggle size="sm" />
           {isLoggedIn ? (
             <>
               {role === "admin" && (

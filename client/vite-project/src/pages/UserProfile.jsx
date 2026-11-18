@@ -15,7 +15,9 @@ import {
   Shield,
 } from "lucide-react";
 import Measurements from "../components/Measurement/Measurement.jsx";
+import UnitToggle from "../components/Measurement/UnitToggle.jsx";
 import Header from "../components/Header.jsx";
+import { useUnit } from "../context/UnitContext.jsx";
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:5000";
 
@@ -76,19 +78,21 @@ export default function Profile() {
       })
     : "Recently";
 
+  const { unit, formatMeasurement, getUnitLabel } = useUnit();
+
   // Measurement display fields
   const measurementFields = [
-    { key: "height", label: "Height", unit: "cm", icon: "📏" },
-    { key: "weight", label: "Weight", unit: "kg", icon: "⚖️" },
-    { key: "neck", label: "Neck", unit: "cm", icon: "👔" },
-    { key: "chest", label: "Chest", unit: "cm", icon: "👕" },
-    { key: "bust", label: "Bust", unit: "cm", icon: "👗" },
-    { key: "waist", label: "Waist", unit: "cm", icon: "📐" },
-    { key: "hips", label: "Hips", unit: "cm", icon: "👖" },
-    { key: "shoulder", label: "Shoulder", unit: "cm", icon: "🧥" },
-    { key: "armLength", label: "Arm Length", unit: "cm", icon: "💪" },
-    { key: "sleeve", label: "Sleeve", unit: "cm", icon: "🧵" },
-    { key: "inseam", label: "Inseam", unit: "cm", icon: "📏" },
+    { key: "height", label: "Height", icon: "📏" },
+    { key: "weight", label: "Weight", icon: "⚖️" },
+    { key: "neck", label: "Neck", icon: "👔" },
+    { key: "chest", label: "Chest", icon: "👕" },
+    { key: "bust", label: "Bust", icon: "👗" },
+    { key: "waist", label: "Waist", icon: "📐" },
+    { key: "hips", label: "Hips", icon: "👖" },
+    { key: "shoulder", label: "Shoulder", icon: "🧥" },
+    { key: "armLength", label: "Arm Length", icon: "💪" },
+    { key: "sleeve", label: "Sleeve", icon: "🧵" },
+    { key: "inseam", label: "Inseam", icon: "📏" },
   ];
 
   const hasMeasurements =
@@ -233,27 +237,29 @@ export default function Profile() {
                 <Ruler className="w-5 h-5 text-rose-600" />
                 My Measurements
               </h3>
-              {hasMeasurements && (
-                <div className="flex items-center gap-2">
-                  {/* AI or Manual badge */}
-                  {measurements.isAIGenerated ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-50 border border-violet-200 text-violet-700 text-xs font-medium">
-                      <Bot className="w-3.5 h-3.5" />
-                      AI Generated
-                      {measurements.confidence && (
-                        <span className="text-violet-500 ml-1">
-                          ({measurements.confidence}% confidence)
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
-                      <PenLine className="w-3.5 h-3.5" />
-                      Manually Entered
-                    </span>
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <UnitToggle size="sm" />
+                {hasMeasurements && (
+                  <>
+                    {measurements.isAIGenerated ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-50 border border-violet-200 text-violet-700 text-xs font-medium">
+                        <Bot className="w-3.5 h-3.5" />
+                        AI Generated
+                        {measurements.confidence && (
+                          <span className="text-violet-500 ml-1">
+                            ({measurements.confidence}% confidence)
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                        <PenLine className="w-3.5 h-3.5" />
+                        Manually Entered
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {hasMeasurements ? (
@@ -270,10 +276,7 @@ export default function Profile() {
                       >
                         <p className="text-lg mb-1">{field.icon}</p>
                         <p className="text-xl font-bold text-stone-900">
-                          {value}
-                          <span className="text-xs text-stone-500 ml-1 font-normal">
-                            {field.unit}
-                          </span>
+                          {formatMeasurement(value, field.key, unit)}
                         </p>
                         <p className="text-xs text-stone-600 mt-1">
                           {field.label}

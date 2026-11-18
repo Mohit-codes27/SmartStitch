@@ -181,12 +181,28 @@ export const pixelsToCm = (pixels, referenceHeightCm, referenceHeightPx) => {
 
 /**
  * Format measurement for display
- * @param {number} value - Measurement value
- * @param {string} unit - Unit of measurement
+ * @param {number} value - Measurement value in cm
+ * @param {string} unit - Unit of measurement: "cm" | "ft/in" | "in"
+ * @param {boolean} isHeight - Whether this field represents height
  * @returns {string} Formatted measurement string
  */
-export const formatMeasurement = (value, unit = "cm") => {
-  return `${Math.round(value)} ${unit}`;
+export const formatMeasurement = (value, unit = "cm", isHeight = false) => {
+  if (value === null || value === undefined || value === "") return "";
+  const num = Number(value);
+  if (isNaN(num)) return "";
+
+  if (unit === "cm") {
+    return `${Math.round(num)} cm`;
+  }
+
+  if (isHeight) {
+    const totalInches = num / 2.54;
+    const feet = Math.floor(totalInches / 12);
+    const inches = Math.round(totalInches % 12);
+    return `${feet}' ${inches}"`;
+  }
+
+  return `${+(num / 2.54).toFixed(1)} in`;
 };
 
 /**
@@ -221,11 +237,13 @@ export const estimateInseam = (keypoints, pixelToCmRatio) => {
  * @param {number} confidence - Overall confidence score
  * @returns {string} Human-readable report
  */
-export const generateMeasurementReport = (measurements, confidence) => {
+export const generateMeasurementReport = (measurements, confidence, unit = "cm") => {
   const qualityLevel = 
     confidence >= CONFIDENCE_THRESHOLDS.EXCELLENT ? "Excellent" :
     confidence >= CONFIDENCE_THRESHOLDS.GOOD ? "Good" :
     "Fair";
+
+  const fmt = (val, isHeight = false) => formatMeasurement(val, unit, isHeight);
 
   return `
 Measurement Report
@@ -233,15 +251,15 @@ Measurement Report
 Quality: ${qualityLevel} (${Math.round(confidence * 100)}%)
 
 Body Measurements:
-- Height: ${measurements.height} cm
-- Chest: ${measurements.chest} cm
-- Bust: ${measurements.bust} cm
-- Waist: ${measurements.waist} cm
-- Hips: ${measurements.hips} cm
-- Shoulder: ${measurements.shoulder} cm
-- Arm Length: ${measurements.armLength} cm
-- Neck: ${measurements.neck} cm
-- Sleeve: ${measurements.sleeve} cm
+- Height: ${fmt(measurements.height, true)}
+- Chest: ${fmt(measurements.chest)}
+- Bust: ${fmt(measurements.bust)}
+- Waist: ${fmt(measurements.waist)}
+- Hips: ${fmt(measurements.hips)}
+- Shoulder: ${fmt(measurements.shoulder)}
+- Arm Length: ${fmt(measurements.armLength)}
+- Neck: ${fmt(measurements.neck)}
+- Sleeve: ${fmt(measurements.sleeve)}
 
 Note: These are AI-estimated measurements. Please verify and adjust as needed.
   `.trim();

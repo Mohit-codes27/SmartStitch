@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Package, Users, DollarSign, Clock, CheckCircle, XCircle, Eye } from 'lucide-react';
 import Header from '../components/Header.jsx';
 import axios from 'axios';
+import { useUnit } from '../context/UnitContext.jsx';
+import UnitToggle from '../components/Measurement/UnitToggle.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
 
@@ -46,6 +48,7 @@ const formatPaymentMethod = (method) => {
 };
 
 export default function AdminDashboard() {
+  const { unit, formatMeasurement } = useUnit();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -300,10 +303,13 @@ export default function AdminDashboard() {
 
               {/* Order Items */}
               <div>
-                <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-purple-600" />
-                  Order Items
-                </h4>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-purple-600" />
+                    Order Items
+                  </h4>
+                  <UnitToggle size="sm" />
+                </div>
                 {selectedOrder.orderType === 'cart' ? (
                   <div className="space-y-3">
                     {selectedOrder.items?.map((item, index) => (
@@ -323,7 +329,18 @@ export default function AdminDashboard() {
                             </p>
                           )}
                           {item.customMeasurements && (
-                            <p className="text-xs text-purple-600 mt-1">Custom measurements applied</p>
+                            <div className="mt-2 p-2 bg-purple-50 border border-purple-100 rounded-lg text-xs text-purple-900">
+                              <p className="font-semibold text-purple-800 mb-1">Custom Measurements:</p>
+                              <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px] text-purple-700">
+                                {Object.entries(item.customMeasurements)
+                                  .filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+                                  .map(([k, v]) => (
+                                    <span key={k} className="capitalize">
+                                      {k}: {formatMeasurement(v, k, unit)}
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         <p className="font-bold text-gray-800">{formatInr(item.price * item.quantity)}</p>

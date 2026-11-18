@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, Check, MapPin, CreditCard, Banknote, Landmark } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
 import { UserDataContext } from '../context/UserContext.jsx';
+import { useUnit } from '../context/UnitContext.jsx';
+import UnitToggle from '../components/Measurement/UnitToggle.jsx';
 import Header from '../components/Header.jsx';
 import axios from 'axios';
 
@@ -18,6 +20,7 @@ const formatInr = (amount) =>
 export default function Checkout() {
   const { cartItems, getSubtotal, getGST, getTotal, clearCart } = useCart();
   const { user } = useContext(UserDataContext);
+  const { unit, formatMeasurement } = useUnit();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(false);
@@ -159,10 +162,13 @@ export default function Checkout() {
 
             {/* Order Items Summary */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <ShoppingBag className="w-6 h-6 text-purple-600" />
-                Order Items ({cartItems.length})
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <ShoppingBag className="w-6 h-6 text-purple-600" />
+                  Order Items ({cartItems.length})
+                </h2>
+                <UnitToggle size="sm" />
+              </div>
               <div className="space-y-3">
                 {cartItems.map((item) => (
                   <div
@@ -186,6 +192,17 @@ export default function Checkout() {
                             {item.selectedColor && ` • Color: ${item.selectedColor}`}
                             {item.selectedDesign && ` • Design: ${item.selectedDesign}`}
                           </p>
+                        )}
+                        {item.customMeasurements && (
+                          <div className="mt-1 p-2 bg-purple-50 border border-purple-100 rounded-lg text-xs text-purple-900">
+                            <span className="font-semibold text-purple-800">Custom Measurements: </span>
+                            <span className="text-purple-700">
+                              {Object.entries(item.customMeasurements)
+                                .filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+                                .map(([k, v]) => `${k}: ${formatMeasurement(v, k, unit)}`)
+                                .join(' • ')}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
