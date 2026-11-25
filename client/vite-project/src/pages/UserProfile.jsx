@@ -15,6 +15,7 @@ import {
   Shield,
 } from "lucide-react";
 import Measurements from "../components/Measurement/Measurement.jsx";
+import BodyTypeCard from "../components/Measurement/BodyTypeCard.jsx";
 import UnitToggle from "../components/Measurement/UnitToggle.jsx";
 import Header from "../components/Header.jsx";
 import { useUnit } from "../context/UnitContext.jsx";
@@ -377,6 +378,9 @@ export default function Profile() {
               </div>
             )}
           </div>
+
+          {/* ═════ Body Type & Recommendations Card ═════ */}
+          <BodyTypeCard measurements={measurements} />
 
           {/* ═════ AI Try-On CTA Banner ═════ */}
           <Link

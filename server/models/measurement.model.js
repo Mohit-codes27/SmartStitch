@@ -41,6 +41,9 @@ const measurementSchema = new mongoose.Schema({
     weight:{
         type: Number,
     },
+    bodyType:{
+        type: String, // e.g. 'hourglass', 'pear', 'rectangle', 'inverted_triangle', 'apple'
+    },
     // AI metadata
     isAIGenerated:{
         type: Boolean,

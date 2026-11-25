@@ -16,6 +16,7 @@ const createMeasurement = async (req, res) => {
       weight,
       bust,
       armLength,
+      bodyType,
       isAIGenerated,
       confidence
     } = req.body;
@@ -40,6 +41,7 @@ const createMeasurement = async (req, res) => {
       weight,
       bust,
       armLength,
+      bodyType: bodyType || null,
       isAIGenerated: isAIGenerated || false,
       confidence: confidence || null
     };

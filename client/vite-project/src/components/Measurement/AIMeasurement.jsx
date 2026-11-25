@@ -4,6 +4,7 @@ import * as poseDetection from "@tensorflow-models/pose-detection";
 import { Camera, StopCircle, Scan, CheckCircle, XCircle } from "lucide-react";
 import { useUnit } from "../../context/UnitContext";
 import UnitToggle from "./UnitToggle";
+import { calculateBodyType } from "../../utils/bodyTypeUtils";
 
 export default function AIMeasurement({ onMeasurementsComplete }) {
   const videoRef = useRef(null);
@@ -148,15 +149,26 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     const expectedShoulderRatio = 0.255;
     const detectedShoulderRatio = shoulderWidthPx / noseToAnkle;
     const rawBuildFactor = detectedShoulderRatio / expectedShoulderRatio;
-    const buildFactor = Math.max(0.85, Math.min(1.15, rawBuildFactor));
+    const buildFactor = Math.max(0.78, Math.min(1.28, rawBuildFactor));
 
-    const expectedHipRatio = 0.18;
+    const expectedHipRatio = 0.185;
     const detectedHipRatio = hipWidthPx / noseToAnkle;
     const rawHipFactor = detectedHipRatio / expectedHipRatio;
-    const hipBuildFactor = Math.max(0.85, Math.min(1.15, rawHipFactor));
+    const hipBuildFactor = Math.max(0.78, Math.min(1.28, rawHipFactor));
+
+    // Waist taper based on actual torso ratio between shoulders and hips
+    const shoulderToHipFactor = shoulderWidthPx / (hipWidthPx || 1);
+    let waistBuildFactor = Math.min(buildFactor, hipBuildFactor) * 0.94;
+    // If hips and shoulders are both pronounced, waist tapers naturally (hourglass)
+    if (buildFactor > 1.0 && hipBuildFactor > 1.0) {
+      waistBuildFactor = Math.min(buildFactor, hipBuildFactor) * 0.88;
+    } else if (shoulderToHipFactor > 1.45) {
+      // V-taper (athletic / inverted triangle)
+      waistBuildFactor = hipBuildFactor * 0.92;
+    }
 
     const chest = Math.round(heightInCm * 0.54 * buildFactor);
-    const waist = Math.round(heightInCm * 0.45 * buildFactor);
+    const waist = Math.round(heightInCm * 0.44 * waistBuildFactor);
     const hips = Math.round(heightInCm * 0.54 * hipBuildFactor);
     const bust = Math.round(chest * 0.96);
     const shoulder = Math.round(heightInCm * 0.255 * buildFactor);
@@ -164,7 +176,7 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
     const armLength = Math.round(heightInCm * 0.34);
     const sleeve = Math.round(heightInCm * 0.33);
 
-    return {
+    const resultData = {
       height: Math.round(heightInCm),
       bust,
       chest,
@@ -176,6 +188,13 @@ export default function AIMeasurement({ onMeasurementsComplete }) {
       sleeve,
       confidence: Math.round(avgConfidence * 100),
     };
+
+    const detectedBody = calculateBodyType(resultData);
+    if (detectedBody) {
+      resultData.bodyType = detectedBody.id;
+    }
+
+    return resultData;
   };
 
   // Draw pose on canvas

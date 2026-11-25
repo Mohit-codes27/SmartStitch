@@ -11,12 +11,18 @@ import {
   Scissors,
   Camera,
   Share2,
-  Shirt
+  Shirt,
+  Sparkles,
+  Compass
 } from 'lucide-react';
+import axios from 'axios';
 import { fetchClothes, fetchShopMeta } from '../api/clothApi.js';
 import Header from '../components/Header.jsx';
 import { useCart } from '../context/CartContext.jsx';
 import { dummyProducts } from '../data/dummyProducts.js';
+import { calculateBodyType, getRecommendedProducts } from '../utils/bodyTypeUtils.js';
+
+const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
 
 const priceRanges = [
   { label: 'All', value: 'all' },
@@ -49,6 +55,43 @@ export default function Shop() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [meta, setMeta] = useState({ categories: [], priceRange: { minPrice: 0, maxPrice: 0 }, tags: [] });
+  const [userMeasurements, setUserMeasurements] = useState(null);
+  const [filterByBodyType, setFilterByBodyType] = useState(false);
+
+  const token = localStorage.getItem('token');
+
+  // Fetch saved measurements for body type recommendation
+  useEffect(() => {
+    if (!token) return;
+    axios
+      .get(`${API_BASE_URL}/measurements/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        const data = res.data?.data;
+        if (data && data.length > 0) {
+          setUserMeasurements(data[0]);
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const userBodyType = useMemo(() => {
+    return calculateBodyType(userMeasurements);
+  }, [userMeasurements]);
+
+  const recommendedIds = useMemo(() => {
+    if (!userBodyType) return new Set();
+    const recs = getRecommendedProducts(products, userBodyType);
+    return new Set(recs.map(p => p._id || p.id));
+  }, [products, userBodyType]);
+
+  const displayedProducts = useMemo(() => {
+    if (filterByBodyType && userBodyType) {
+      return getRecommendedProducts(products, userBodyType);
+    }
+    return products;
+  }, [products, filterByBodyType, userBodyType]);
 
   const categories = useMemo(() => ['All', ...(meta?.categories || [])], [meta]);
 
@@ -192,6 +235,22 @@ export default function Shop() {
             ))}
           </div>
 
+          {/* Body Type Recommendation Filter */}
+          {userBodyType && (
+            <button
+              onClick={() => setFilterByBodyType(!filterByBodyType)}
+              className={`px-4 py-2 rounded-full text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 shrink-0 ${
+                filterByBodyType
+                  ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md ring-2 ring-rose-400/50'
+                  : 'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100'
+              }`}
+              title={`Show clothes handpicked for ${userBodyType.name} body shape`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{userBodyType.name} Fits</span>
+            </button>
+          )}
+
           {/* Sort Dropdown */}
           <div className="relative">
             <select
@@ -252,13 +311,43 @@ export default function Shop() {
             </div>
           </div>
         )}
+
+        {/* Active Body Type Filter Info Banner */}
+        {filterByBodyType && userBodyType && (
+          <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 flex items-center justify-between gap-4 shadow-sm animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-stone-900">
+                  Curated for your {userBodyType.name} Silhouette
+                </p>
+                <p className="text-xs text-stone-600">
+                  Flattering styles: {userBodyType.flatteringNecklines.slice(0, 3).join(', ')} necklines &bull; {userBodyType.flatteringOutfits[0]}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setFilterByBodyType(false)}
+              className="text-xs text-rose-700 hover:text-rose-900 font-semibold underline shrink-0"
+            >
+              Show All Clothes
+            </button>
+          </div>
+        )}
       </section>
 
       {/* PRODUCTS GRID */}
       <section className="max-w-7xl mx-auto px-6 pb-20">
         <div className="mb-6 flex items-center justify-between">
           <p className="text-stone-700">
-            Showing <span className="font-semibold text-stone-900">{products.length}</span> of {pagination.total + 3} products
+            Showing <span className="font-semibold text-stone-900">{displayedProducts.length}</span> of {pagination.total + 3} products
+            {filterByBodyType && userBodyType && (
+              <span className="ml-2 text-xs font-semibold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                Filtered for {userBodyType.name}
+              </span>
+            )}
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -287,16 +376,27 @@ export default function Shop() {
 
         {loading ? (
           <div className="text-center text-stone-600">Loading products...</div>
-        ) : products.length === 0 ? (
-          <div className="text-center text-stone-600">No products found for this selection.</div>
+        ) : displayedProducts.length === 0 ? (
+          <div className="text-center text-stone-600 py-12">
+            <p className="text-lg font-medium text-stone-800 mb-2">No products found for this selection.</p>
+            {filterByBodyType && (
+              <button
+                onClick={() => setFilterByBodyType(false)}
+                className="text-sm text-rose-600 font-semibold underline hover:text-rose-700"
+              >
+                Clear body shape filter to see all items
+              </button>
+            )}
+          </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {products.map((product) => {
+            {displayedProducts.map((product) => {
               const id = product._id || product.id;
               const image = product.images?.[0] || product.img || "https://placehold.co/600x800?text=SmartStitch";
               const rating = product.rating || 4.5;
               const reviews = product.reviewsCount ?? product.reviews ?? 0;
               const tag = product.tags?.[0] || (product.isFeatured ? 'Featured' : null);
+              const isBodyMatch = recommendedIds.has(id);
 
               return (
                 <div
@@ -311,12 +411,20 @@ export default function Shop() {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-700"
                     />
                     
-                    {/* Tag */}
-                    {tag && (
-                      <div className="absolute top-4 left-4 px-3 py-1 bg-rose-600 text-white text-xs font-semibold rounded-full">
-                        {tag}
-                      </div>
-                    )}
+                    {/* Tags / Badges */}
+                    <div className="absolute top-4 left-4 flex flex-col gap-1.5 z-10">
+                      {isBodyMatch && userBodyType && (
+                        <div className="px-3 py-1 bg-gradient-to-r from-rose-600 to-pink-600 text-white text-xs font-semibold rounded-full shadow-md flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          Suits {userBodyType.name}
+                        </div>
+                      )}
+                      {tag && !isBodyMatch && (
+                        <div className="px-3 py-1 bg-stone-900/80 backdrop-blur-xs text-white text-xs font-semibold rounded-full">
+                          {tag}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Quick Actions */}
                     <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition">

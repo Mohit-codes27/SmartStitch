@@ -23,6 +23,7 @@ import { useCart } from '../context/CartContext.jsx';
 import { dummyProducts } from '../data/dummyProducts.js';
 import { useUnit } from '../context/UnitContext.jsx';
 import UnitToggle from '../components/Measurement/UnitToggle.jsx';
+import { calculateBodyType } from '../utils/bodyTypeUtils.js';
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:5000';
 
@@ -52,6 +53,10 @@ export default function ProductDetail() {
   const [error, setError] = useState('');
   const [savedMeasurements, setSavedMeasurements] = useState(null);
   const [measurementsLoaded, setMeasurementsLoaded] = useState(false);
+
+  const userBodyType = useMemo(() => {
+    return calculateBodyType(savedMeasurements);
+  }, [savedMeasurements]);
 
   const token = localStorage.getItem('token');
 
@@ -523,6 +528,31 @@ export default function ProductDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Body Type Fit Advice Banner */}
+              {userBodyType && (
+                <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200/80 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-stone-900">
+                        Tailoring for your {userBodyType.name} Silhouette
+                      </p>
+                      <p className="text-[11px] text-stone-600 mt-0.5">
+                        Flattering necklines: {userBodyType.flatteringNecklines.slice(0, 3).join(', ')} &bull; {userBodyType.flatteringSleeves[0]}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/profile"
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline shrink-0"
+                  >
+                    My Shape Guide &rarr;
+                  </Link>
+                </div>
+              )}
 
               {/* MEASUREMENT SELECTION */}
               <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-white/40 shadow-lg">

@@ -3,6 +3,8 @@ import { Edit2, Save, Sparkles, AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useUnit } from "../../context/UnitContext";
 import UnitToggle from "./UnitToggle";
+import BodyTypeCard from "./BodyTypeCard";
+import { calculateBodyType } from "../../utils/bodyTypeUtils";
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:5000";
 
@@ -57,9 +59,11 @@ export default function MeasurementReview({
       setError("");
       
       // Prepare measurement data for backend (always in cm)
+      const detectedBody = calculateBodyType(measurements);
       const measurementData = {
         userId,
         ...measurements,
+        bodyType: detectedBody?.id || null,
         isAIGenerated,
         confidence: measurements.confidence || null,
       };
@@ -124,6 +128,9 @@ export default function MeasurementReview({
           </div>
         </div>
       )}
+
+      {/* Detected Body Type Preview */}
+      <BodyTypeCard measurements={measurements} compact={true} className="mb-4" />
 
       {/* Error Message */}
       {error && (

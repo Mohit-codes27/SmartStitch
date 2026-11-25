@@ -3,6 +3,7 @@ import axios from "axios";
 import { Ruler, Save, CheckCircle, AlertCircle } from "lucide-react";
 import { useUnit } from "../../context/UnitContext";
 import UnitToggle from "./UnitToggle";
+import { calculateBodyType } from "../../utils/bodyTypeUtils";
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || "http://localhost:5000";
 
@@ -152,16 +153,21 @@ export default function Measurements({ userId, onMeasurementsSaved }) {
         return;
       }
 
+      const detected = calculateBodyType(payload);
+      if (detected) {
+        payload.bodyType = detected.id;
+      }
+
       if (existingId) {
         await axios.patch(
           `${API_BASE_URL}/measurements/${existingId}`,
-          payload,
+          { ...payload, measurementMethod: "manual" },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       } else {
         const res = await axios.post(
           `${API_BASE_URL}/measurements/`,
-          payload,
+          { ...payload, measurementMethod: "manual" },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setExistingId(res.data?.data?._id);
